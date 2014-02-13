@@ -157,3 +157,16 @@ MKMapRect CCHMapClusterControllerMapRectForCoordinateRegion(MKCoordinateRegion c
     
     return mapRect;
 }
+
+BOOL CCHMapClusterAnnotationsShareCoordinates(NSSet *annotations)
+{
+    CLLocationCoordinate2D coordinate = kCLLocationCoordinate2DInvalid;
+    for (id<MKAnnotation> annotation in annotations) {
+        if (!CLLocationCoordinate2DIsValid(coordinate) || (fequal(coordinate.latitude, annotation.coordinate.latitude) && fequal(coordinate.longitude, annotation.coordinate.longitude))) {
+            coordinate = annotation.coordinate;
+        } else {
+            return NO;
+        }
+    }
+    return YES;
+}

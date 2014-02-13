@@ -167,6 +167,29 @@
     }];
 }
 
+- (CCHMapClusterAnnotation *)clusterAnnotationForCellRect:(MKMapRect)cellRect
+                                    annotations:(NSSet *)annotations
+                       reusingClusterAnnotation:(CCHMapClusterAnnotation *)annotationForCell
+{
+    if (annotationForCell == nil) {
+        annotationForCell = [[CCHMapClusterAnnotation alloc] init];
+        annotationForCell.coordinate = [_clusterer mapClusterController:self coordinateForAnnotations:annotations inMapRect:cellRect];
+        annotationForCell.delegate = _delegate;
+        annotationForCell.annotations = annotations;
+    } else {
+        // For existing annotations, this will implicitly update annotation views
+        dispatch_async(dispatch_get_main_queue(), ^{
+            annotationForCell.annotations = annotations;
+            annotationForCell.title = nil;
+            annotationForCell.subtitle = nil;
+            if ([self.delegate respondsToSelector:@selector(mapClusterController:willReuseMapClusterAnnotation:)]) {
+                [self.delegate mapClusterController:self willReuseMapClusterAnnotation:annotationForCell];
+            }
+        });
+    }
+    return annotationForCell;
+}
+
 - (void)updateAnnotationsWithCompletionHandler:(void (^)())completionHandler
 {
     [self sync];
@@ -185,30 +208,38 @@
         NSMutableSet *clusters = [NSMutableSet set];
         CCHMapClusterControllerEnumerateCells(gridMapRect, cellSize, ^(MKMapRect cellRect) {
             NSSet *allAnnotationsInCell = [_allAnnotationsMapTree annotationsInMapRect:cellRect];
+            NSSet *visibleAnnotationsInCell = [_visibleAnnotationsMapTree annotationsInMapRect:cellRect];
+
             if (allAnnotationsInCell.count > 0) {
-                // Select cluster representation
-                NSSet *visibleAnnotationsInCell = [_visibleAnnotationsMapTree annotationsInMapRect:cellRect];
-                CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(allAnnotationsInCell, visibleAnnotationsInCell);
-                if (annotationForCell == nil) {
-                    annotationForCell = [[CCHMapClusterAnnotation alloc] init];
-                    annotationForCell.coordinate = [_clusterer mapClusterController:self coordinateForAnnotations:allAnnotationsInCell inMapRect:cellRect];
-                    annotationForCell.delegate = _delegate;
-                    annotationForCell.annotations = allAnnotationsInCell;
+                if (self.mapView.region.span.longitudeDelta > 0.03
+                    || (allAnnotationsInCell.count > 4 && self.mapView.region.span.longitudeDelta > 0.0032)
+                    || CCHMapClusterAnnotationsShareCoordinates(allAnnotationsInCell)) {
+                    
+                    // Show cluster annotations
+                    CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(allAnnotationsInCell, visibleAnnotationsInCell);
+                    annotationForCell = [self clusterAnnotationForCellRect:cellRect
+                                                               annotations:allAnnotationsInCell
+                                                  reusingClusterAnnotation:annotationForCell];
+
+                    // Collect clusters
+                    [clusters addObject:annotationForCell];
+                    
+                    
                 } else {
-                    // For existing annotations, this will implicitly update annotation views
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        annotationForCell.annotations = allAnnotationsInCell;
-                        annotationForCell.title = nil;
-                        annotationForCell.subtitle = nil;
-                        if ([self.delegate respondsToSelector:@selector(mapClusterController:willReuseMapClusterAnnotation:)]) {
-                            [self.delegate mapClusterController:self willReuseMapClusterAnnotation:annotationForCell];
-                        }
-                    });
+                    
+                    // We're zoomed inShow a single annotation per cluster annotation.
+                    NSMutableSet *mutableVisibleAnnotationsInCell = [NSMutableSet setWithSet:visibleAnnotationsInCell];
+                    for (id<MKAnnotation> annotation in allAnnotationsInCell) {
+                        CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(allAnnotationsInCell, mutableVisibleAnnotationsInCell);
+                        if (annotationForCell) [mutableVisibleAnnotationsInCell removeObject:annotationForCell];
+                        annotationForCell = [self clusterAnnotationForCellRect:cellRect
+                                                                   annotations:[NSSet setWithObject:annotation]
+                                                      reusingClusterAnnotation:annotationForCell];
+                        [clusters addObject:annotationForCell];
+                    }
                 }
-                
-                // Collect clusters
-                [clusters addObject:annotationForCell];
             }
+            
         });
         
         // Figure out difference between new and old clusters
