@@ -14,4 +14,5 @@ Pod::Spec.new do |s|
   s.osx.deployment_target = '10.9'
 
   s.source_files = 'CCHMapClusterController/*.{h,m}'
+  s.dependency 'objc-geohash'
 end

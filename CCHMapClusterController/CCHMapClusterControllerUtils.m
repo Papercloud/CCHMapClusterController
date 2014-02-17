@@ -29,6 +29,8 @@
 
 #import <float.h>
 
+#import <GeoHash.h>
+
 #define fequal(a, b) (fabs((a) - (b)) < __FLT_EPSILON__)
 
 MKMapRect CCHMapClusterControllerAlignMapRectToCellSize(MKMapRect mapRect, double cellSize)
@@ -158,15 +160,19 @@ MKMapRect CCHMapClusterControllerMapRectForCoordinateRegion(MKCoordinateRegion c
     return mapRect;
 }
 
-BOOL CCHMapClusterAnnotationsShareCoordinates(NSSet *annotations)
+NSArray *CCHMapClusterControllerAnnotationsByUniqueLocations(NSSet *annotations)
 {
-    CLLocationCoordinate2D coordinate = kCLLocationCoordinate2DInvalid;
-    for (id<MKAnnotation> annotation in annotations) {
-        if (!CLLocationCoordinate2DIsValid(coordinate) || (fequal(coordinate.latitude, annotation.coordinate.latitude) && fequal(coordinate.longitude, annotation.coordinate.longitude))) {
-            coordinate = annotation.coordinate;
-        } else {
-            return NO;
-        }
+    NSMutableDictionary *annotationsByGeohash = [NSMutableDictionary dictionary];
+    for (id <MKAnnotation> annotation in annotations) {
+        NSString *geohash = [GeoHash hashForLatitude:annotation.coordinate.latitude
+                                           longitude:annotation.coordinate.longitude
+                                              length:12];
+        
+        NSMutableArray *annotationsAtLocation = [annotationsByGeohash objectForKey:geohash];
+        if (!annotationsAtLocation) annotationsAtLocation = [NSMutableArray array];
+        [annotationsAtLocation addObject:annotation];
+
+        [annotationsByGeohash setObject:annotationsAtLocation forKey:geohash];
     }
-    return YES;
+    return [annotationsByGeohash allValues];
 }

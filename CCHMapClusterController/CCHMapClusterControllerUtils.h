@@ -41,3 +41,4 @@ CCHMapClusterAnnotation *CCHMapClusterControllerClusterAnnotationForAnnotation(M
 void CCHMapClusterControllerEnumerateCells(MKMapRect mapRect, double cellSize, void (^block)(MKMapRect cellRect));
 MKMapRect CCHMapClusterControllerMapRectForCoordinateRegion(MKCoordinateRegion coordinateRegion);
 BOOL CCHMapClusterAnnotationsShareCoordinates(NSSet *annotations);
+NSArray *CCHMapClusterControllerAnnotationsByUniqueLocations(NSSet *annotations);
