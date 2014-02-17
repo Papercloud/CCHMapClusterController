@@ -63,6 +63,7 @@
 @property (nonatomic, strong) id<CCHMapClusterer> strongClusterer;
 @property (nonatomic, strong) CCHMapClusterAnnotation *(^findVisibleAnnotation)(NSSet *annotations, NSSet *visibleAnnotations);
 @property (nonatomic, strong) id<CCHMapAnimator> strongAnimator;
+@property (nonatomic, strong) NSMutableSet *selectedAnnotations;
 
 @end
 
@@ -88,6 +89,8 @@
         id<CCHMapAnimator> animator = [[CCHFadeInOutMapAnimator alloc] init];
         _animator = animator;
         _strongAnimator = animator;
+        
+        _selectedAnnotations = [NSMutableSet set];
         
         [self setReuseExistingClusterAnnotations:YES];
     }
@@ -206,15 +209,33 @@
     NSOperation *operation = [NSBlockOperation blockOperationWithBlock:^{
         // For each cell in the grid, pick one annotation to show
         NSMutableSet *clusters = [NSMutableSet set];
+        NSMutableSet *visibleClusterAnnotationsToSelect = [NSMutableSet set];
         CCHMapClusterControllerEnumerateCells(gridMapRect, cellSize, ^(MKMapRect cellRect) {
-            NSSet *allAnnotationsInCell = [_allAnnotationsMapTree annotationsInMapRect:cellRect];
+            NSMutableSet *allAnnotationsInCell = [NSMutableSet setWithSet:[_allAnnotationsMapTree annotationsInMapRect:cellRect]];
             NSSet *visibleAnnotationsInCell = [_visibleAnnotationsMapTree annotationsInMapRect:cellRect];
+            
+            // We need to subtract from this each time we re-use one, or they'll get picked for re-use multiple times.
+            NSMutableSet *mutableVisibleAnnotationsInCell = [NSMutableSet setWithSet:visibleAnnotationsInCell];
+            
+            NSSet *selectedAnnotationsInCell = [self.selectedAnnotations objectsPassingTest:^BOOL(id obj, BOOL *stop) {
+                return [allAnnotationsInCell containsObject:obj];
+            }];
+            [allAnnotationsInCell minusSet:selectedAnnotationsInCell];
+            if (selectedAnnotationsInCell.count > 0) {
+                for (id<MKAnnotation> annotation in selectedAnnotationsInCell) {
+                    CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation([NSSet setWithObject:annotation], mutableVisibleAnnotationsInCell);
+                    if (annotationForCell) [mutableVisibleAnnotationsInCell removeObject:annotationForCell];
+                    annotationForCell = [self clusterAnnotationForCellRect:cellRect
+                                                               annotations:[NSSet setWithObject:annotation]
+                                                  reusingClusterAnnotation:annotationForCell];
+                    [clusters addObject:annotationForCell];
+                    [visibleClusterAnnotationsToSelect addObject:annotationForCell];
+                }
+            }
             
             if (allAnnotationsInCell.count > 0) {
                 if ((allAnnotationsInCell.count > 4 && self.mapView.region.span.longitudeDelta > 0.0032)
-                    || self.mapView.region.span.longitudeDelta > 0.03
-//                    || (allAnnotationsInCell.count > 4 && self.mapView.region.span.longitudeDelta > 0.0032)
-                    ) {
+                    || self.mapView.region.span.longitudeDelta > 0.03) {
                     
                     // Show cluster annotations
                     CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(allAnnotationsInCell, visibleAnnotationsInCell);
@@ -232,7 +253,6 @@
                     // Group any annotations that share a location.
                     
                     NSArray *uniqueLocations = CCHMapClusterControllerAnnotationsByUniqueLocations(allAnnotationsInCell);
-                    NSMutableSet *mutableVisibleAnnotationsInCell = [NSMutableSet setWithSet:visibleAnnotationsInCell];
                     for (NSArray *annotationsAtLocation in uniqueLocations) {
                         NSSet *annotationsAtLocationSet = [NSSet setWithArray:annotationsAtLocation];
 
@@ -278,6 +298,14 @@
                     completionHandler();
                 }
             }];
+//            for (id <MKAnnotation> selectedAnnotation in self.mapView.selectedAnnotations) {
+//                if ([selectedAnnotation isKindOfClass:[CCHMapClusterAnnotation class]]) {
+//                    [self.mapView deselectAnnotation:selectedAnnotation animated:NO];
+//                }
+//            }
+            for (CCHMapClusterAnnotation *selectedAnnotation in visibleClusterAnnotationsToSelect) {
+                [self.mapView selectAnnotation:selectedAnnotation animated:NO];
+            }
         });
     }];
     __weak NSOperation *weakOperation = operation;
@@ -317,6 +345,21 @@
     for (id<MKAnnotation> selectedAnnotation in selectedAnnotations) {
         [self.mapView deselectAnnotation:selectedAnnotation animated:YES];
     }
+}
+
+- (void)selectAnnotation:(id<MKAnnotation>)annotation
+{
+    [self.selectedAnnotations addObject:annotation];
+}
+
+- (void)deselectAnnotation:(id<MKAnnotation>)annotation
+{
+    [self.selectedAnnotations removeObject:annotation];
+}
+
+- (BOOL)hasSelectedAnnotations:(NSSet *)annotations
+{
+    return ([self.selectedAnnotations intersectsSet:annotations]);
 }
 
 - (void)selectAnnotation:(id<MKAnnotation>)annotation andZoomToRegionWithLatitudinalMeters:(CLLocationDistance)latitudinalMeters longitudinalMeters:(CLLocationDistance)longitudinalMeters
@@ -370,10 +413,10 @@
     
     // Deselect all annotations when zooming in/out. Longitude delta will not change
     // unless zoom changes (in contrast to latitude delta).
-    BOOL hasZoomed = !fequal(mapView.region.span.longitudeDelta, self.regionSpanBeforeChange.longitudeDelta);
-    if (hasZoomed) {
-        [self deselectAllAnnotations];
-    }
+//    BOOL hasZoomed = !fequal(mapView.region.span.longitudeDelta, self.regionSpanBeforeChange.longitudeDelta);
+//    if (hasZoomed) {
+//        [self deselectAllAnnotations];
+//    }
     
     // Update annotations
     [self updateAnnotationsWithCompletionHandler:^{

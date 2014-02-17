@@ -59,6 +59,25 @@
 @property (nonatomic, weak) id<CCHMapAnimator> animator;
 
 /**
+ Select an annotation and keep it selected and visible as a cluster of one regardless of clustering or zoom level.
+ Intended to be called from within mapView:didSelectAnnotationView:
+ @param annotation An annotation as added with addAnnotations:withCompletionHandler:. Not to be a CCHMapClusterAnnotation.
+ */
+- (void)selectAnnotation:(id<MKAnnotation>)annotation;
+
+/**
+ Deselect an annotation, so it can be included within other clusters.
+ Intended to be called from mapView:didDeselectAnnotationView:
+ @param annotation An annotation as added with addAnnotations:withCompletionHandler:. Not to be a CCHMapClusterAnnotation.
+ */
+- (void)deselectAnnotation:(id<MKAnnotation>)annotation;
+
+/**
+ Returns TRUE if any of annotations are currently selected.
+ */
+- (BOOL)hasSelectedAnnotations:(NSSet *)annotations;
+
+/**
  Initializes the cluster controller.
  @param mapView `MKMapView` to use to display clusters.
  */
