@@ -65,6 +65,8 @@
 @property (nonatomic, strong) id<CCHMapAnimator> strongAnimator;
 @property (nonatomic, strong) NSMutableSet *selectedAnnotations;
 
+@property (nonatomic, strong) NSMutableSet *reusableAnnotations;
+
 @end
 
 @implementation CCHMapClusterController
@@ -91,6 +93,7 @@
         _strongAnimator = animator;
         
         _selectedAnnotations = [NSMutableSet set];
+        _reusableAnnotations = [NSMutableSet set];
         
         [self setReuseExistingClusterAnnotations:YES];
     }
@@ -175,10 +178,16 @@
                        reusingClusterAnnotation:(CCHMapClusterAnnotation *)annotationForCell
 {
     if (annotationForCell == nil) {
-        annotationForCell = [[CCHMapClusterAnnotation alloc] init];
+    
+        annotationForCell = [self.reusableAnnotations anyObject];
+        if (annotationForCell) [self.reusableAnnotations removeObject:annotationForCell];
+        if (!annotationForCell) {
+            annotationForCell = [[CCHMapClusterAnnotation alloc] init];
+        }
         annotationForCell.coordinate = [_clusterer mapClusterController:self coordinateForAnnotations:annotations inMapRect:cellRect];
         annotationForCell.delegate = _delegate;
         annotationForCell.annotations = annotations;
+
     } else {
         // For existing annotations, this will implicitly update annotation views
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -217,6 +226,7 @@
             // We need to subtract from this each time we re-use one, or they'll get picked for re-use multiple times.
             NSMutableSet *mutableVisibleAnnotationsInCell = [NSMutableSet setWithSet:visibleAnnotationsInCell];
             
+            // Draw selected annotations on their own, one to a cluster.
             NSSet *selectedAnnotationsInCell = [self.selectedAnnotations objectsPassingTest:^BOOL(id obj, BOOL *stop) {
                 return [allAnnotationsInCell containsObject:obj];
             }];
@@ -238,7 +248,7 @@
                     || self.mapView.region.span.longitudeDelta > 0.03) {
                     
                     // Show cluster annotations
-                    CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(allAnnotationsInCell, visibleAnnotationsInCell);
+                    CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(allAnnotationsInCell, mutableVisibleAnnotationsInCell);
                     annotationForCell = [self clusterAnnotationForCellRect:cellRect
                                                                annotations:allAnnotationsInCell
                                                   reusingClusterAnnotation:annotationForCell];
@@ -256,14 +266,13 @@
                     for (NSArray *annotationsAtLocation in uniqueLocations) {
                         NSSet *annotationsAtLocationSet = [NSSet setWithArray:annotationsAtLocation];
 
-                        for (id<MKAnnotation> annotation in allAnnotationsInCell) {
-                            CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(annotationsAtLocationSet, mutableVisibleAnnotationsInCell);
-                            if (annotationForCell) [mutableVisibleAnnotationsInCell removeObject:annotationForCell];
-                            annotationForCell = [self clusterAnnotationForCellRect:cellRect
-                                                                       annotations:annotationsAtLocationSet
-                                                          reusingClusterAnnotation:annotationForCell];
-                            [clusters addObject:annotationForCell];
-                        }
+                        CCHMapClusterAnnotation *annotationForCell = _findVisibleAnnotation(annotationsAtLocationSet, mutableVisibleAnnotationsInCell);
+                        if (annotationForCell) [mutableVisibleAnnotationsInCell removeObject:annotationForCell];
+                        annotationForCell = [self clusterAnnotationForCellRect:cellRect
+                                                                   annotations:annotationsAtLocationSet
+                                                      reusingClusterAnnotation:annotationForCell];
+                        [clusters addObject:annotationForCell];
+
                     }
                 }
             }
@@ -293,16 +302,11 @@
             [self.mapView addAnnotations:annotationsToAdd];
             [self.animator mapClusterController:self willRemoveAnnotations:annotationsToRemove withCompletionHandler:^{
                 [self.mapView removeAnnotations:annotationsToRemove];
-                
+                [self.reusableAnnotations addObjectsFromArray:annotationsToRemove];
                 if (completionHandler) {
                     completionHandler();
                 }
             }];
-//            for (id <MKAnnotation> selectedAnnotation in self.mapView.selectedAnnotations) {
-//                if ([selectedAnnotation isKindOfClass:[CCHMapClusterAnnotation class]]) {
-//                    [self.mapView deselectAnnotation:selectedAnnotation animated:NO];
-//                }
-//            }
             for (CCHMapClusterAnnotation *selectedAnnotation in visibleClusterAnnotationsToSelect) {
                 [self.mapView selectAnnotation:selectedAnnotation animated:NO];
             }
