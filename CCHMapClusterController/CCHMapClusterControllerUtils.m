@@ -166,7 +166,7 @@ NSArray *CCHMapClusterControllerAnnotationsByUniqueLocations(NSSet *annotations)
     for (id <MKAnnotation> annotation in annotations) {
         NSString *geohash = [GeoHash hashForLatitude:annotation.coordinate.latitude
                                            longitude:annotation.coordinate.longitude
-                                              length:12];
+                                              length:9];
         
         NSMutableArray *annotationsAtLocation = [annotationsByGeohash objectForKey:geohash];
         if (!annotationsAtLocation) annotationsAtLocation = [NSMutableArray array];

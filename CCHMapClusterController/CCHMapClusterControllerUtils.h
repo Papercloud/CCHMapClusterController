@@ -40,5 +40,4 @@ BOOL CCHMapClusterControllerCoordinateEqualToCoordinate(CLLocationCoordinate2D c
 CCHMapClusterAnnotation *CCHMapClusterControllerClusterAnnotationForAnnotation(MKMapView *mapView, id<MKAnnotation> annotation, MKMapRect mapRect);
 void CCHMapClusterControllerEnumerateCells(MKMapRect mapRect, double cellSize, void (^block)(MKMapRect cellRect));
 MKMapRect CCHMapClusterControllerMapRectForCoordinateRegion(MKCoordinateRegion coordinateRegion);
-BOOL CCHMapClusterAnnotationsShareCoordinates(NSSet *annotations);
 NSArray *CCHMapClusterControllerAnnotationsByUniqueLocations(NSSet *annotations);

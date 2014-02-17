@@ -212,9 +212,8 @@
             
             if (allAnnotationsInCell.count > 0) {
                 if ((allAnnotationsInCell.count > 4 && self.mapView.region.span.longitudeDelta > 0.0032)
-//                    self.mapView.region.span.longitudeDelta > 0.03
+                    || self.mapView.region.span.longitudeDelta > 0.03
 //                    || (allAnnotationsInCell.count > 4 && self.mapView.region.span.longitudeDelta > 0.0032)
-//                    || CCHMapClusterAnnotationsShareCoordinates(allAnnotationsInCell)
                     ) {
                     
                     // Show cluster annotations
