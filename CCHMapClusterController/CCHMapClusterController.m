@@ -423,31 +423,35 @@
 //    }
     
     // Update annotations
-    [self updateAnnotationsWithCompletionHandler:^{
-        if (self.annotationToSelect) {
-            // Map has zoomed to selected annotation; search for cluster annotation that contains this annotation
-            CCHMapClusterAnnotation *mapClusterAnnotation = CCHMapClusterControllerClusterAnnotationForAnnotation(self.mapView, self.annotationToSelect, mapView.visibleMapRect);
-            self.annotationToSelect = nil;
-            
-            if (CCHMapClusterControllerCoordinateEqualToCoordinate(self.mapView.centerCoordinate, mapClusterAnnotation.coordinate)) {
-                // Select immediately since region won't change
-                [self.mapView selectAnnotation:mapClusterAnnotation animated:YES];
-            } else {
-                // Actual selection happens in next call to mapView:regionDidChangeAnimated:
-                self.mapClusterAnnotationToSelect = mapClusterAnnotation;
+    // See https://github.com/choefele/CCHMapClusterController/issues/20
+    // The grid moves when the map is moved programmatically, which adjusts all the clusters.
+    if (!animated) {
+        [self updateAnnotationsWithCompletionHandler:^{
+            if (self.annotationToSelect) {
+                // Map has zoomed to selected annotation; search for cluster annotation that contains this annotation
+                CCHMapClusterAnnotation *mapClusterAnnotation = CCHMapClusterControllerClusterAnnotationForAnnotation(self.mapView, self.annotationToSelect, mapView.visibleMapRect);
+                self.annotationToSelect = nil;
                 
-                // Dispatch async to avoid calling regionDidChangeAnimated immediately
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    // No zooming, only panning. Otherwise, annotation might change to a different cluster annotation
-                    [self.mapView setCenterCoordinate:mapClusterAnnotation.coordinate animated:NO];
-                });
+                if (CCHMapClusterControllerCoordinateEqualToCoordinate(self.mapView.centerCoordinate, mapClusterAnnotation.coordinate)) {
+                    // Select immediately since region won't change
+                    [self.mapView selectAnnotation:mapClusterAnnotation animated:YES];
+                } else {
+                    // Actual selection happens in next call to mapView:regionDidChangeAnimated:
+                    self.mapClusterAnnotationToSelect = mapClusterAnnotation;
+                    
+                    // Dispatch async to avoid calling regionDidChangeAnimated immediately
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        // No zooming, only panning. Otherwise, annotation might change to a different cluster annotation
+                        [self.mapView setCenterCoordinate:mapClusterAnnotation.coordinate animated:NO];
+                    });
+                }
+            } else if (self.mapClusterAnnotationToSelect) {
+                // Map has zoomed to annotation
+                [self.mapView selectAnnotation:self.mapClusterAnnotationToSelect animated:YES];
+                self.mapClusterAnnotationToSelect = nil;
             }
-        } else if (self.mapClusterAnnotationToSelect) {
-            // Map has zoomed to annotation
-            [self.mapView selectAnnotation:self.mapClusterAnnotationToSelect animated:YES];
-            self.mapClusterAnnotationToSelect = nil;
-        }
-    }];
+        }];
+    }
 }
 
 #if TARGET_OS_IPHONE
