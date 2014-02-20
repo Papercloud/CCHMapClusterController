@@ -206,7 +206,7 @@
 {
     [self sync];
     
-    // World size is multiple of cell size so that cells wrap around at the 180th merdian
+    // World size is multiple of cell size so that cells wrap around at the 180th meridian
     double cellSize = CCHMapClusterControllerMapLengthForLength(_mapView, _mapView.superview, _cellSize);
     cellSize = CCHMapClusterControllerAlignMapLengthToWorldWidth(cellSize);
     
@@ -280,18 +280,13 @@
         });
         
         // Figure out difference between new and old clusters
-        NSMutableSet *annotationsBefore = [NSMutableSet setWithArray:_mapView.annotations];
-		[annotationsBefore filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
-			// Remove every annotation that is not a CCHMapClusterAnnotation (including [_mapView userLocation]).
-			// This allows non-clustered MKAnnotations to be used alongside clusters.
-			return [evaluatedObject isKindOfClass:[CCHMapClusterAnnotation class]];
-		}]];
-        NSMutableSet *annotationsToKeep = [NSMutableSet setWithSet:annotationsBefore];
+        NSSet *annotationsBeforeAsSet = CCHMapClusterControllerClusterAnnotationsForAnnotations(self.mapView.annotations);
+        NSMutableSet *annotationsToKeep = [NSMutableSet setWithSet:annotationsBeforeAsSet];
         [annotationsToKeep intersectSet:clusters];
         NSMutableSet *annotationsToAddAsSet = [NSMutableSet setWithSet:clusters];
         [annotationsToAddAsSet minusSet:annotationsToKeep];
         NSArray *annotationsToAdd = [annotationsToAddAsSet allObjects];
-        NSMutableSet *annotationsToRemoveAsSet = [NSMutableSet setWithSet:annotationsBefore];
+        NSMutableSet *annotationsToRemoveAsSet = [NSMutableSet setWithSet:annotationsBeforeAsSet];
         [annotationsToRemoveAsSet minusSet:clusters];
         NSArray *annotationsToRemove = [annotationsToRemoveAsSet allObjects];
         
@@ -323,24 +318,33 @@
 
     // Debugging
     if (self.isDebuggingEnabled) {
-        for (id<MKOverlay> overlay in _mapView.overlays) {
-            if ([overlay isKindOfClass:CCHMapClusterControllerPolygon.class]) {
-                [_mapView removeOverlay:overlay];
-            }
-        }
-        
-        CCHMapClusterControllerEnumerateCells(gridMapRect, cellSize, ^(MKMapRect cellRect) {
-            cellRect.origin.x -= MKMapSizeWorld.width;  // fixes issue when view port spans 180th meridian
-
-            MKMapPoint points[4];
-            points[0] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMinY(cellRect));
-            points[1] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMinY(cellRect));
-            points[2] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMaxY(cellRect));
-            points[3] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMaxY(cellRect));
-            MKPolygon *polygon = [CCHMapClusterControllerPolygon polygonWithPoints:points count:4];
-            [_mapView addOverlay:polygon];
-        });
+        [self updateDebugPolygonsInMapRect:gridMapRect withCellSize:cellSize];
     }
+}
+
+- (void)updateDebugPolygonsInMapRect:(MKMapRect)mapRect withCellSize:(double)cellSize
+{
+    MKMapView *mapView = self.mapView;
+    
+    // Remove old polygons
+    for (id<MKOverlay> overlay in mapView.overlays) {
+        if ([overlay isKindOfClass:CCHMapClusterControllerPolygon.class]) {
+            [mapView removeOverlay:overlay];
+        }
+    }
+    
+    // Add polygons outlining each cell
+    CCHMapClusterControllerEnumerateCells(mapRect, cellSize, ^(MKMapRect cellRect) {
+        cellRect.origin.x -= MKMapSizeWorld.width;  // fixes issue when view port spans 180th meridian
+        
+        MKMapPoint points[4];
+        points[0] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMinY(cellRect));
+        points[1] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMinY(cellRect));
+        points[2] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMaxY(cellRect));
+        points[3] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMaxY(cellRect));
+        MKPolygon *polygon = [CCHMapClusterControllerPolygon polygonWithPoints:points count:4];
+        [mapView addOverlay:polygon];
+    });
 }
 
 - (void)deselectAllAnnotations

@@ -10,6 +10,7 @@
 
 #import "CCHMapClusterController.h"
 #import "CCHMapClusterAnnotation.h"
+#import "CCHFadeInOutMapAnimator.h"
 #import "CCHMapClusterControllerUtils.h"
 
 @interface CCHMapClusterControllerTests : XCTestCase
@@ -51,7 +52,7 @@
     [self.mapClusterController addAnnotations:nil withCompletionHandler:^{
         weakSelf.done = YES;
     }];
-    XCTAssertTrue([self waitForCompletion:1.0], @"Time out");
+    XCTAssertTrue([self waitForCompletion:1.0]);
     XCTAssertEqual(self.mapView.annotations.count, (NSUInteger)0);
 }
 
@@ -66,7 +67,7 @@
     [self.mapClusterController addAnnotations:@[annotation] withCompletionHandler:^{
         weakSelf.done = YES;
     }];
-    XCTAssertTrue([self waitForCompletion:1.0], @"Time out");
+    XCTAssertTrue([self waitForCompletion:1.0]);
     XCTAssertEqual(self.mapView.annotations.count, (NSUInteger)1);
 }
 
@@ -103,7 +104,7 @@
     [self.mapClusterController addAnnotations:annotations withCompletionHandler:^{
         weakSelf.done = YES;
     }];
-    XCTAssertTrue([self waitForCompletion:1.0], @"Time out");
+    XCTAssertTrue([self waitForCompletion:1.0]);
     XCTAssertEqual(self.mapClusterController.annotations.count, (NSUInteger)6);
     XCTAssertEqual(self.mapView.annotations.count, (NSUInteger)2);
 
@@ -165,7 +166,7 @@
     [self.mapClusterController addAnnotations:annotations withCompletionHandler:^{
         weakSelf.done = YES;
     }];
-    XCTAssertTrue([self waitForCompletion:1.0], @"Time out");
+    XCTAssertTrue([self waitForCompletion:1.0]);
     XCTAssertEqual(self.mapClusterController.annotations.count, (NSUInteger)6);
     XCTAssertEqual(self.mapView.annotations.count, (NSUInteger)2);
 
@@ -179,7 +180,7 @@
     [self.mapClusterController removeAnnotations:@[annotation0] withCompletionHandler:^{
         weakSelf.done = YES;
     }];
-    XCTAssertTrue([self waitForCompletion:1.0], @"Time out");
+    XCTAssertTrue([self waitForCompletion:1.0]);
     XCTAssertEqual(self.mapClusterController.annotations.count, (NSUInteger)5);
     XCTAssertEqual(self.mapView.annotations.count, (NSUInteger)1);
 
@@ -198,7 +199,7 @@
     [self.mapClusterController removeAnnotations:annotations withCompletionHandler:^{
         weakSelf.done = YES;
     }];
-    XCTAssertTrue([self waitForCompletion:1.0], @"Time out");
+    XCTAssertTrue([self waitForCompletion:1.0]);
     XCTAssertEqual(self.mapView.annotations.count, (NSUInteger)0);
     
     // Check visible region
@@ -224,7 +225,7 @@
         weakSelf.done = YES;
     }];
 
-    XCTAssertTrue([self waitForCompletion:1.0], @"Time out");
+    XCTAssertTrue([self waitForCompletion:1.0]);
     XCTAssertEqual(self.mapView.annotations.count, (NSUInteger)2);
 
     NSArray *clusteredAnnotations = [self.mapView.annotations filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
@@ -236,6 +237,36 @@
         return [evaluatedObject isMemberOfClass:MKPointAnnotation.class];
     }]];
     XCTAssertEqual(pointAnnotations.count, (NSUInteger)1);
+}
+
+- (void)testFadeInOut
+{
+    CCHFadeInOutMapAnimator *animator = [[CCHFadeInOutMapAnimator alloc] init];
+    self.mapClusterController.animator = animator;
+    
+    MKPointAnnotation *annotation = [[MKPointAnnotation alloc] init];
+    annotation.coordinate = CLLocationCoordinate2DMake(52.5, 13.5);
+    MKCoordinateRegion region = MKCoordinateRegionMake(annotation.coordinate, MKCoordinateSpanMake(3, 3));
+    self.mapView.region = region;
+    
+    // Fade in
+    __weak CCHMapClusterControllerTests *weakSelf = self;
+    [self.mapClusterController addAnnotations:@[annotation] withCompletionHandler:^{
+        weakSelf.done = YES;
+    }];
+    XCTAssertTrue([self waitForCompletion:1.0]);
+    
+    CCHMapClusterAnnotation *clusterAnnotation = [self.mapView.annotations lastObject];
+    MKAnnotationView *annotationView = [self.mapView viewForAnnotation:clusterAnnotation];
+    XCTAssertEqualWithAccuracy(annotationView.alpha, 1.0, __FLT_EPSILON__);
+    
+    // Fade Out
+    self.done = NO;
+    [self.mapClusterController removeAnnotations:@[annotation] withCompletionHandler:^{
+        weakSelf.done = YES;
+    }];
+    XCTAssertTrue([self waitForCompletion:1.0]);
+    XCTAssertEqualWithAccuracy(annotationView.alpha, 0.0, __FLT_EPSILON__);
 }
 
 @end

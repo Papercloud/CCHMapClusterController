@@ -99,9 +99,9 @@ double CCHMapClusterControllerAlignMapLengthToWorldWidth(double mapLength)
     return mapLength;
 }
 
-BOOL CCHMapClusterControllerCoordinateEqualToCoordinate(CLLocationCoordinate2D coordinate1, CLLocationCoordinate2D coordinate2)
+BOOL CCHMapClusterControllerCoordinateEqualToCoordinate(CLLocationCoordinate2D coordinate0, CLLocationCoordinate2D coordinate1)
 {
-    BOOL isCoordinateUpToDate = fequal(coordinate1.latitude, coordinate2.latitude) && fequal(coordinate1.longitude, coordinate2.longitude);
+    BOOL isCoordinateUpToDate = fequal(coordinate0.latitude, coordinate1.latitude) && fequal(coordinate0.longitude, coordinate1.longitude);
     return isCoordinateUpToDate;
 }
 
@@ -175,4 +175,14 @@ NSArray *CCHMapClusterControllerAnnotationsByUniqueLocations(NSSet *annotations)
         [annotationsByGeohash setObject:annotationsAtLocation forKey:geohash];
     }
     return [annotationsByGeohash allValues];
+}
+
+NSSet *CCHMapClusterControllerClusterAnnotationsForAnnotations(NSArray *annotations)
+{
+    NSSet *filteredAnnotations = [NSMutableSet setWithArray:annotations];
+    filteredAnnotations = [filteredAnnotations filteredSetUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
+        return [evaluatedObject isKindOfClass:CCHMapClusterAnnotation.class];
+    }]];
+    
+    return filteredAnnotations;
 }
