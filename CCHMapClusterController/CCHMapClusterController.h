@@ -66,6 +66,11 @@
 - (void)selectAnnotation:(id<MKAnnotation>)annotation;
 
 /**
+ Same as selectAnnotation, but immediately updates clustering so the selected pin will show immediately.
+ */
+- (void)selectAndUpdateAnnotation:(id<MKAnnotation>)annotation;
+
+/**
  Deselect an annotation, so it can be included within other clusters.
  Intended to be called from mapView:didDeselectAnnotationView:
  @param annotation An annotation as added with addAnnotations:withCompletionHandler:. Not to be a CCHMapClusterAnnotation.

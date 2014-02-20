@@ -206,7 +206,7 @@
 {
     [self sync];
     
-    // World size is multiple of cell size so that cells wrap around at the 180th meridian
+    // World size is multiple of cell size so that cells wrap around at the 180th merdian
     double cellSize = CCHMapClusterControllerMapLengthForLength(_mapView, _mapView.superview, _cellSize);
     cellSize = CCHMapClusterControllerAlignMapLengthToWorldWidth(cellSize);
     
@@ -280,13 +280,18 @@
         });
         
         // Figure out difference between new and old clusters
-        NSSet *annotationsBeforeAsSet = CCHMapClusterControllerClusterAnnotationsForAnnotations(self.mapView.annotations);
-        NSMutableSet *annotationsToKeep = [NSMutableSet setWithSet:annotationsBeforeAsSet];
+        NSMutableSet *annotationsBefore = [NSMutableSet setWithArray:_mapView.annotations];
+        [annotationsBefore filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
+            // Remove every annotation that is not a CCHMapClusterAnnotation (including [_mapView userLocation]).
+            // This allows non-clustered MKAnnotations to be used alongside clusters.
+            return [evaluatedObject isKindOfClass:[CCHMapClusterAnnotation class]];
+        }]];
+        NSMutableSet *annotationsToKeep = [NSMutableSet setWithSet:annotationsBefore];
         [annotationsToKeep intersectSet:clusters];
         NSMutableSet *annotationsToAddAsSet = [NSMutableSet setWithSet:clusters];
         [annotationsToAddAsSet minusSet:annotationsToKeep];
         NSArray *annotationsToAdd = [annotationsToAddAsSet allObjects];
-        NSMutableSet *annotationsToRemoveAsSet = [NSMutableSet setWithSet:annotationsBeforeAsSet];
+        NSMutableSet *annotationsToRemoveAsSet = [NSMutableSet setWithSet:annotationsBefore];
         [annotationsToRemoveAsSet minusSet:clusters];
         NSArray *annotationsToRemove = [annotationsToRemoveAsSet allObjects];
         
@@ -298,13 +303,13 @@
             [self.animator mapClusterController:self willRemoveAnnotations:annotationsToRemove withCompletionHandler:^{
                 [self.mapView removeAnnotations:annotationsToRemove];
                 [self.reusableAnnotations addObjectsFromArray:annotationsToRemove];
+                for (CCHMapClusterAnnotation *selectedAnnotation in visibleClusterAnnotationsToSelect) {
+                    [self.mapView selectAnnotation:selectedAnnotation animated:NO];
+                }
                 if (completionHandler) {
                     completionHandler();
                 }
             }];
-            for (CCHMapClusterAnnotation *selectedAnnotation in visibleClusterAnnotationsToSelect) {
-                [self.mapView selectAnnotation:selectedAnnotation animated:NO];
-            }
         });
     }];
     __weak NSOperation *weakOperation = operation;
@@ -318,33 +323,24 @@
 
     // Debugging
     if (self.isDebuggingEnabled) {
-        [self updateDebugPolygonsInMapRect:gridMapRect withCellSize:cellSize];
-    }
-}
-
-- (void)updateDebugPolygonsInMapRect:(MKMapRect)mapRect withCellSize:(double)cellSize
-{
-    MKMapView *mapView = self.mapView;
-    
-    // Remove old polygons
-    for (id<MKOverlay> overlay in mapView.overlays) {
-        if ([overlay isKindOfClass:CCHMapClusterControllerPolygon.class]) {
-            [mapView removeOverlay:overlay];
+        for (id<MKOverlay> overlay in _mapView.overlays) {
+            if ([overlay isKindOfClass:CCHMapClusterControllerPolygon.class]) {
+                [_mapView removeOverlay:overlay];
+            }
         }
-    }
-    
-    // Add polygons outlining each cell
-    CCHMapClusterControllerEnumerateCells(mapRect, cellSize, ^(MKMapRect cellRect) {
-        cellRect.origin.x -= MKMapSizeWorld.width;  // fixes issue when view port spans 180th meridian
         
-        MKMapPoint points[4];
-        points[0] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMinY(cellRect));
-        points[1] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMinY(cellRect));
-        points[2] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMaxY(cellRect));
-        points[3] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMaxY(cellRect));
-        MKPolygon *polygon = [CCHMapClusterControllerPolygon polygonWithPoints:points count:4];
-        [mapView addOverlay:polygon];
-    });
+        CCHMapClusterControllerEnumerateCells(gridMapRect, cellSize, ^(MKMapRect cellRect) {
+            cellRect.origin.x -= MKMapSizeWorld.width;  // fixes issue when view port spans 180th meridian
+
+            MKMapPoint points[4];
+            points[0] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMinY(cellRect));
+            points[1] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMinY(cellRect));
+            points[2] = MKMapPointMake(MKMapRectGetMaxX(cellRect), MKMapRectGetMaxY(cellRect));
+            points[3] = MKMapPointMake(MKMapRectGetMinX(cellRect), MKMapRectGetMaxY(cellRect));
+            MKPolygon *polygon = [CCHMapClusterControllerPolygon polygonWithPoints:points count:4];
+            [_mapView addOverlay:polygon];
+        });
+    }
 }
 
 - (void)deselectAllAnnotations
@@ -358,6 +354,12 @@
 - (void)selectAnnotation:(id<MKAnnotation>)annotation
 {
     [self.selectedAnnotations addObject:annotation];
+}
+
+- (void)selectAndUpdateAnnotation:(id<MKAnnotation>)annotation
+{
+    [self selectAnnotation:annotation];
+    [self updateAnnotationsWithCompletionHandler:NULL];
 }
 
 - (void)deselectAnnotation:(id<MKAnnotation>)annotation
@@ -378,7 +380,7 @@
     // Zoom to annotation
     self.annotationToSelect = annotation;
     MKCoordinateRegion region = MKCoordinateRegionMakeWithDistance(annotation.coordinate, latitudinalMeters, longitudinalMeters);
-    [self.mapView setRegion:region animated:YES];
+    [self.mapView setRegion:region animated:NO];
     if (CCHMapClusterControllerCoordinateEqualToCoordinate(region.center, self.mapView.centerCoordinate)) {
         // Manually call update methods because region won't change
         [self mapView:self.mapView regionWillChangeAnimated:YES];
@@ -462,7 +464,7 @@
 - (MKOverlayView *)mapView:(MKMapView *)mapView viewForOverlay:(id<MKOverlay>)overlay
 {
     MKOverlayView *view;
-	
+    
     // Forward to standard delegate
     if ([self.mapViewDelegateProxy.target respondsToSelector:@selector(mapView:viewForOverlay:)]) {
         view = [self.mapViewDelegateProxy.target mapView:mapView viewForOverlay:overlay];
@@ -482,7 +484,7 @@
 - (MKOverlayRenderer *)mapView:(MKMapView *)mapView rendererForOverlay:(id<MKOverlay>)overlay
 {
     MKOverlayRenderer *renderer;
-	
+    
     // Forward to standard delegate
     if ([self.mapViewDelegateProxy.target respondsToSelector:@selector(mapView:rendererForOverlay:)]) {
         renderer = [self.mapViewDelegateProxy.target mapView:mapView rendererForOverlay:overlay];
