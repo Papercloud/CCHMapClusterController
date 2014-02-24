@@ -59,6 +59,11 @@
 @property (nonatomic, weak) id<CCHMapAnimator> animator;
 
 /**
+ Set center coordinate without re-drawing clusters and while maintaining the zoom level.
+ */
+- (void)setCenterCoordinateWithoutRecluster:(CLLocationCoordinate2D)location animated:(BOOL)animated;
+
+/**
  Select an annotation and keep it selected and visible as a cluster of one regardless of clustering or zoom level.
  Intended to be called from within mapView:didSelectAnnotationView:
  @param annotation An annotation as added with addAnnotations:withCompletionHandler:. Not to be a CCHMapClusterAnnotation.

@@ -66,6 +66,7 @@
 @property (nonatomic, strong) NSMutableSet *selectedAnnotations;
 
 @property (nonatomic, strong) NSMutableSet *reusableAnnotations;
+@property (nonatomic) BOOL shouldUpdateClusters;
 
 @end
 
@@ -388,6 +389,16 @@
     }
 }
 
+// See https://github.com/choefele/CCHMapClusterController/issues/20
+// Due to an iOS7 issue, re-centreing the map leads to a sligth change in map region span, which triggers
+// re-clustering when we would rather they stay constant. This centres the map without changing the map region span.
+// The solution in the Github issue isn't adequate because it snaps to re-defined zoom levels.
+- (void)setCenterCoordinateWithoutRecluster:(CLLocationCoordinate2D)location animated:(BOOL)animated
+{
+    self.shouldUpdateClusters = NO;
+    [self.mapView setCenterCoordinate:location animated:YES];
+}
+
 #pragma mark - Map view proxied delegate methods
 
 - (void)mapView:(MKMapView *)mapView didAddAnnotationViews:(NSArray *)annotationViews
@@ -429,9 +440,7 @@
 //    }
     
     // Update annotations
-    // See https://github.com/choefele/CCHMapClusterController/issues/20
-    // The grid moves when the map is moved programmatically, which adjusts all the clusters.
-    if (!animated) {
+    if (self.shouldUpdateClusters) {
         [self updateAnnotationsWithCompletionHandler:^{
             if (self.annotationToSelect) {
                 // Map has zoomed to selected annotation; search for cluster annotation that contains this annotation
@@ -458,6 +467,8 @@
             }
         }];
     }
+    
+    self.shouldUpdateClusters = YES;
 }
 
 #if TARGET_OS_IPHONE
