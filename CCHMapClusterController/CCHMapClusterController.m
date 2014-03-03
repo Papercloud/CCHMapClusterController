@@ -350,6 +350,8 @@
     for (id<MKAnnotation> selectedAnnotation in selectedAnnotations) {
         [self.mapView deselectAnnotation:selectedAnnotation animated:YES];
     }
+
+    [self.selectedAnnotations removeAllObjects];
 }
 
 - (void)selectAnnotation:(id<MKAnnotation>)annotation

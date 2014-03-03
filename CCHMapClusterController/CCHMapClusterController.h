@@ -83,6 +83,11 @@
 - (void)deselectAnnotation:(id<MKAnnotation>)annotation;
 
 /**
+ Deselect all annotations, usually to prepare for selecting another.
+ */
+- (void)deselectAllAnnotations;
+
+/**
  Returns TRUE if any of annotations are currently selected.
  */
 - (BOOL)hasSelectedAnnotations:(NSSet *)annotations;
