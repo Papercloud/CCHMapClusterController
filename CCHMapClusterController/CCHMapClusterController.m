@@ -174,6 +174,11 @@
     }];
 }
 
+- (void)removeAllAnnotationsWithCompletionHandler:(void (^)())completionHandler
+{
+    [self removeAnnotations:self.allAnnotationsMapTree.annotations.allObjects withCompletionHandler:completionHandler];
+}
+
 - (CCHMapClusterAnnotation *)clusterAnnotationForCellRect:(MKMapRect)cellRect
                                     annotations:(NSSet *)annotations
                        reusingClusterAnnotation:(CCHMapClusterAnnotation *)annotationForCell
